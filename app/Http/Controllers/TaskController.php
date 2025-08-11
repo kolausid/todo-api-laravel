@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\Task;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Http\Response;
 
 class TaskController extends Controller
 {
@@ -13,10 +14,16 @@ class TaskController extends Controller
      *
      * @return \Illuminate\Http\Response
      */
+    // GET /api/tasks
     public function index()
     {
-        $task = Task::all();
-        return response()->json($task);
+        // Возвращаем все задачи. Для больших проектов нужно сделать пагинацию.
+        $tasks = Task::all();
+
+        // Возвращаем JSON-ответ
+        return response()->json([
+            'data' => $tasks,
+        ], Response::HTTP_OK);
     }
 
     /**
@@ -25,20 +32,24 @@ class TaskController extends Controller
      * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Http\Response
      */
+    
+    // POST /api/tasks
     public function store(Request $request)
     {
-        $validator = Validator::make($request->all(), [
-            'title' => 'required|string|max:255', // Title обязателен
-            'description' => 'nullable|string', // Description опционально
-            'status' => 'in:pending,completed', // Status обязателен, pending или completed
-        ]);
+        // Валидация входных данных
+            $validated = $request->validate([
+            'title'       => 'required|string|max:255',
+            'description' => 'nullable|string',
+            // статус - обычная строка, но мы ограничим допустимые значения через in
+            'status'      => 'nullable|in:pending,in_progress,done']);
 
-        if ($validator->fails()) {
-            return response()->json($validator->errors(), 422);
-        }
+        // Создаём задачу
+        $task = Task::create($validated);
 
-        $task = Task::create($request->all());
-        return response()->json($task, 201);
+        return response()->json([
+            'message' => 'Task created',
+            'data' => $task,
+        ], Response::HTTP_CREATED);
     }
 
     /**
@@ -47,15 +58,20 @@ class TaskController extends Controller
      * @param  int  $id
      * @return \Illuminate\Http\Response
      */
+    
+    // GET /api/tasks/{id}
     public function show($id)
     {
         $task = Task::find($id);
-        if (!$task) {
-            return response()->json(['message' => 'Task not found'], 404);
-        }
-        return response()->json($task);
-    }
 
+        if (!$task) {
+            return response()->json(['message' => 'Task not found'], Response::HTTP_NOT_FOUND);
+        }
+
+        return response()->json([
+            'data' => $task,
+        ], Response::HTTP_OK);
+    }
     /**
      * Update the specified resource in storage.
      *
@@ -63,25 +79,29 @@ class TaskController extends Controller
      * @param  int  $id
      * @return \Illuminate\Http\Response
      */
+    
+    // PUT /api/tasks/{id}
     public function update(Request $request, $id)
     {
         $task = Task::find($id);
+
         if (!$task) {
-            return response()->json(['message' => 'Task not found'], 404);
+            return response()->json(['message' => 'Task not found'], Response::HTTP_NOT_FOUND);
         }
-        // Валидация частичная
-        $validator = Validator::make($request->all(), [
+
+        $validated = $request->validate([
             'title' => 'sometimes|required|string|max:255',
             'description' => 'nullable|string',
-            'status' => 'sometimes|required|string|in:pending,completed',
+            'status' => 'nullable|in:pending,in_progress,done',
         ]);
 
-        if ($validator->fails()) {
-            return response()->json($validator->errors(), 422);
-        }
+        // Обновляем поля
+        $task->update($validated);
 
-        $task->update($request->all()); // Обновляем
-        return response()->json($task);
+        return response()->json([
+            'message' => 'Task updated',
+            'data' => $task,
+        ], Response::HTTP_OK);
     }
 
     /**
@@ -90,13 +110,20 @@ class TaskController extends Controller
      * @param  int  $id
      * @return \Illuminate\Http\Response
      */
+    
+    // DELETE /api/tasks/{id}
     public function destroy($id)
     {
         $task = Task::find($id);
+
         if (!$task) {
-            return response()->json(['message' => 'Task not found'], 404);
+            return response()->json(['message' => 'Task not found'], Response::HTTP_NOT_FOUND);
         }
-        $task->delete(); // Удаляем
-        return response()->json(null, 204);
+
+        $task->delete();
+
+        return response()->json([
+            'message' => 'Task deleted',
+        ], Response::HTTP_NO_CONTENT);
     }
 }
